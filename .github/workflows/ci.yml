@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest --cov --cov-report=term-missing
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t speed-to-lead-engine .
+      - name: Smoke test the image
+        run: |
+          docker run -d --name stl -p 8000:8000 speed-to-lead-engine
+          for i in $(seq 1 20); do curl -fsS localhost:8000/healthz && break; sleep 1; done
+          curl -fsS -X POST "localhost:8000/demo/simulate?count=10" | grep created
+          curl -fsS localhost:8000/metrics | grep total_leads
+          docker logs stl

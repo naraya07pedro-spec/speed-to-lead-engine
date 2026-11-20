@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - leads:/data
+
+  # Pages the owner about leads nobody has called back. Runs every minute.
+  escalator:
+    image: curlimages/curl:8.10.1
+    depends_on: [app]
+    entrypoint: ["/bin/sh", "-c", "while true; do curl -fsS -X POST http://app:8000/jobs/escalate || true; sleep 60; done"]
+
+volumes:
+  leads:
